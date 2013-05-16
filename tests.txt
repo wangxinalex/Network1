@@ -1,0 +1,146 @@
+root@debian:~/network/example_sircc# ./sircc 22302
+Connecting to server 127.0.0.1 at port 22302 ...
+SERVER IP 16777343
+Connected, ready for commands:
+<Test Case 1: Wrong parameter format>
+NICK
+The command should be like this: NICK <nickname>
+NICK command failed.
+
+<Test Case 2: Long names>
+NICK fsfiehusdhnfisdhnfjshndfkjhnsdjkfnhjdksanflkashnfklsafhnsakdlfsadhfsadkfsad
+NOTE :the length of nickname is too long.
+NICK fsfiehusdhnfisdhnfjshndfkjhnsdjkfnhjdksanflkashnfklsafhnsakdlfsadhfsadkfsad command failed.
+
+<Test Case 3: USER+NICK>
+USER alex alex alex :alex
+NICK wang
+:debian 375 wang :- <server> Message of the day -.
+:debian 372 wang :- Send motd. 
+:debian 376 wang :End of /MOTD command.
+
+<Test Case 4: duplicated NICK>
+NICK wang
+NICK wang
+NOTE: nickname wang has been registered.
+
+<Test Case 5: JOIN channel>
+JOIN #linux
+:alex JOIN #linux
+:debian 353 alex = #linux : alex
+:debian 366 alex #linux :End of /NAMES list
+ 
+<Test Case 6: channel_name duplicated with nickname>
+JOIN alex
+NOTE: channel_name alex duplicated with user's nickname.
+
+<Test Case 7: change channel>
+JOIN #linux
+:alex JOIN #linux
+:debian 353 alex = #linux : alex
+:debian 366 alex #linux :End of /NAMES list
+LIST
+:debian 321 alex Channel :Users Name
+:debian 322 alex #linux 1
+:debian 323 alex :End of /LIST.
+JOIN #ubuntu
+:alex!wang@wang QUIT :the client is not in channel #linux.
+:alex JOIN #ubuntu
+:debian 353 alex = #ubuntu : alex
+:debian 366 alex #ubuntu :End of /NAMES list
+LIST
+:debian 321 alex Channel :Users Name
+:debian 322 alex #ubuntu 1
+:debian 323 alex :End of /LIST.
+
+<Test Case 8: PRIVMSG>
+(alex)PRIVMSG nango Hello
+(nango):alex PRIVMSG nango :Hello
+
+(alex@#linux)PRIVMSG #linux Bonjour
+(nango@#linux):alex PRIVMSG #linux :Bonjour
+
+(multiple targets)
+(alex@#linux)PRIVMSG #linux,nango hallo
+(nango@#linux):alex PRIVMSG #linux :hallo
+(nango@#linux):alex PRIVMSG nango :hallo
+
+<Test Case 9: PART>
+(alex@#linux)PART #linux
+(alex@#linux):alex!wang@wang QUIT :the client is not in channel #linux.
+(nango@#linux):alex!wang@wang QUIT :the client is not in channel #linux.
+
+<Test Case 10: WHO>
+WHO #linux
+:debian 352 nango #linux please see following:  alex nango H :0 The MOTD
+:debian 315 nango #linux :End of /WHO list.
+
+<Test Case 11: LIST>
+(1)
+:alex JOIN #linux
+:debian 353 alex = #linux : alex
+:debian 366 alex #linux :End of /NAMES list
+:nango JOIN #linux
+:debian 353 nango = #linux : nango
+:debian 366 nango #linux :End of /NAMES list
+LIST
+:debian 321 alex Channel :Users Name
+:debian 322 alex #linux 2
+:debian 323 alex :End of /LIST.
+JOIN #ubuntu
+:alex!wang@wang QUIT :the client is not in channel #linux.
+(automatically leaves the original channel)
+:alex JOIN #ubuntu
+:debian 353 alex = #ubuntu : alex
+:debian 366 alex #ubuntu :End of /NAMES list
+LIST
+:debian 321 alex Channel :Users Name
+:debian 322 alex #linux 1
+:debian 322 alex #ubuntu 1
+:debian 323 alex :End of /LIST.
+
+(2)
+(nango)JOIN #ubuntu
+:nango JOIN #ubuntu
+:debian 353 nango = #ubuntu : nango
+:debian 366 nango #ubuntu :End of /NAMES list
+LIST
+:debian 321 nango Channel :Users Name
+:debian 322 nango #ubuntu 1
+:debian 323 nango :End of /LIST.
+
+(alex)JOIN #linux
+:alex JOIN #linux
+:debian 353 alex = #linux : alex
+:debian 366 alex #linux :End of /NAMES list
+LIST
+:debian 321 alex Channel :Users Name
+:debian 322 alex #ubuntu 1
+:debian 322 alex #linux 1
+:debian 323 alex :End of /LIST.
+
+(nango)JOIN #fedora
+:nango!song@song QUIT :the client is not in channel #ubuntu.
+:nango JOIN #fedora
+:debian 353 nango = #fedora : nango
+:debian 366 nango #fedora :End of /NAMES list
+LIST
+:debian 321 nango Channel :Users Name
+:debian 322 nango #fedora 1
+:debian 322 nango #linux 1
+:debian 323 nango :End of /LIST. 
+(channel #ubuntu was deleted for no clients in it)
+
+1.The Test Script p1.multiple.sample.txt should have the line 36 "user1 match 375" deleted since user 1 
+has not yet been given a nickname hence it should not get a echo message.
+
+2.In this design, you should handle the global variable very carefully, especially in the loop. For the 
+value in the previous loop may still hold in the array and it may affect the value in the next loop.
+
+3.The "high-water line" value was useful in some pools. For instance, it the global_channel_list, I set a
+max_channel_count to record the maximum number of channels. The value is useful when some channel was deleted
+in the middle of the global_channel_list.
+
+4.To get the detailed information about the state of server, the program could run with a verbosity level 
+"./sircd 1 node.conf -v <verbosity level>".-v 0 means nothing printed, -v 1 means basic logging of users signing 
+on and -v 2 means logging every message event.
