@@ -1,3 +1,13 @@
+/*=============================================================================
+#     FileName: tests.txt
+#         Desc: 
+#       Author: wangxinalex
+#        Email: wangxinalex@gmail.com
+#     HomePage: singo.10ss.me
+#      Version: 0.0.1
+#   LastChange: 2013-04-12 00:34:20
+#      History:
+=============================================================================*/
 root@debian:~/network/example_sircc# ./sircc 22302
 Connecting to server 127.0.0.1 at port 22302 ...
 SERVER IP 16777343
@@ -139,8 +149,4 @@ value in the previous loop may still hold in the array and it may affect the val
 
 3.The "high-water line" value was useful in some pools. For instance, it the global_channel_list, I set a
 max_channel_count to record the maximum number of channels. The value is useful when some channel was deleted
-in the middle of the global_channel_list.
-
-4.To get the detailed information about the state of server, the program could run with a verbosity level 
-"./sircd 1 node.conf -v <verbosity level>".-v 0 means nothing printed, -v 1 means basic logging of users signing 
-on and -v 2 means logging every message event.
+in the middle of the global_channel_list.

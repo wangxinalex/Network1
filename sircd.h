@@ -23,6 +23,7 @@
 #define CMD_LIST 6
 #define CMD_PRIVMSG 7
 #define CMD_WHO 8
+#define CMD_ADDUSER 9
 #define CMD_UNKNOWN 0
 
 #define NAME_LENGTH 32

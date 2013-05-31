@@ -32,14 +32,14 @@ long channel_count;
 int max_channel_count;
 int verbosity;
 int global_client_count;
-
+int sockfd_daemon;
 pool client_pool;
 
 /* Function prototypes */
 void init_node( int argc, char *argv[] );
 size_t get_msg( char *buf, char *msg );
 int tokenize( char const *in_buf, char tokens[MAX_MSG_TOKENS][MAX_MSG_LEN+1] );
-
+void daemon_connect();
 void init_pool(int listenfd, pool* p);
 void add_client(int connfd, pool* p);
 void init_client(int connfd);
@@ -82,12 +82,13 @@ int main( int argc, char *argv[] )
  * 3.Make it a listening socket ready to accept connection requests 
  */
     listenfd=Open_listenfd((int)curr_node_config_entry->irc_port);
+    sockfd_daemon= Open_clientfd("localhost",(int)curr_node_config_entry->local_port);
+    printf("sockfd_daemon = %d\n",sockfd_daemon);
     init_pool(listenfd,&client_pool);
     while(1){
         //all descriptors in the read set was ready for read
         client_pool.ready_set = client_pool.read_set; 
         client_pool.nready = Select(client_pool.maxfd+1,&(client_pool.ready_set),NULL,NULL,NULL);
-
         if(FD_ISSET(listenfd,&(client_pool.ready_set))){
             //return the next ready completed connection from the front of the completed connection queue
             connfd = Accept(listenfd, (SA*)&cliaddr,&addrlen);
@@ -163,6 +164,7 @@ void init_pool(int listenfd, pool* p ){
     FD_SET(listenfd, &p->read_set);
 
 }
+
 /**
  * void add_client(int connfd, pool* p)
  * add a client t the client pool
@@ -430,7 +432,6 @@ int dispatch_command(int cmd_num, char* msg, int connfd, pool* p){
                 Rio_writen(connfd,echo,strlen(echo));
             }
             break;
-
         default :
             return 0;
     }
@@ -444,18 +445,20 @@ int dispatch_command(int cmd_num, char* msg, int connfd, pool* p){
  * nickname and report error message
  */
 int handle_nick(int connfd, char* nickname){
+    char buf[MAX_MSG_LEN];
     if(strlen(nickname) > NAME_LENGTH){
-        char buf[SHORT_MESSAGE_LEN];
-        sprintf(buf, "NOTE :the length of nickname is too long.\n");
-        Rio_writen(connfd, buf, strlen(buf));
+        printf("%d\n",1);
+        char short_buf[SHORT_MESSAGE_LEN];
+        sprintf(short_buf, "NOTE :the length of nickname is too long.\n");
+        Rio_writen(connfd, short_buf, strlen(short_buf));
         return 0;
     }
     client* this_client = global_client_queue[connfd];
     int i;
     for(i = 0; i<FD_SETSIZE; i++){
         //the nickname has been occupied
+
         if((global_client_queue[i] != NULL) && (strcasecmp(global_client_queue[i]->nickname,nickname) == 0)){
-            char buf[MAX_MSG_LEN];
             sprintf(buf,"NOTE: nickname %s has been registered.\n",nickname);
             Rio_writen(connfd, buf, strlen(buf));
             return 1;
@@ -464,8 +467,9 @@ int handle_nick(int connfd, char* nickname){
     if(this_client!=NULL){
         strncpy(this_client->nickname, nickname,NAME_LENGTH);
         this_client->nick_is_set = 1;
+        sprintf(buf, "ADDUSER %s\n",nickname);
+        Rio_writen(sockfd_daemon, buf, sizeof(buf));
         if(this_client->user_is_set == 1){
-            char buf[MAX_MSG_LEN];
             char hostname[NAME_LENGTH];
             gethostname(hostname, NAME_LENGTH);
             sprintf(buf, ":%s 375 %s :- <server> Message of the day -.\n", hostname, this_client->nickname);
@@ -503,14 +507,18 @@ int handle_user(int connfd, char* username, char*  hostname, char* servername, c
         strncpy(this_client->hostname, hostname, NAME_LENGTH);
         strncpy(this_client->servername, servername, NAME_LENGTH);
         strncpy(this_client->realname, realname, NAME_LENGTH);
+        char buf[MAX_MSG_LEN];
         // char buf[MAX_MSG_LEN];
         // sprintf(buf, ":%s 375 %s :- <server> Message of the day -.\n", hostname,this_client->nickname);
         // sprintf(buf, "%s:%s 372 %s :- Send motd. \n",buf, hostname, this_client->nickname);
         // sprintf(buf, "%s:%s 376 %s :End of /MOTD command.\n", buf, hostname, this_client->nickname);
         // Rio_writen(connfd, buf, strlen(buf));
+        sprintf(buf, "ADDUSER %s\n",this_client->nickname);
+        Rio_writen(sockfd_daemon, buf, sizeof(buf));
         return 1;
     
     }
+
     return 0;
 }
 
@@ -592,6 +600,9 @@ int leave_channel(int connfd, char* channel_name){
                 break;
             }
         }
+        char buf[MAX_MSG_LEN];
+        sprintf(buf, "REMOVECHAN #%s\n",this_channel->channel_name);
+        Rio_writen(sockfd_daemon,buf, strlen(buf));
         channel_count--;
     }
     return 1;
@@ -602,11 +613,11 @@ int leave_channel(int connfd, char* channel_name){
  * users sharing the channel with the departing client.
  */
 int handle_quit(int connfd, char* msg, pool* p){
+        char buf[SHORT_MESSAGE_LEN];
     client* this_client = global_client_queue[connfd];
     channel* this_channel = get_channel_by_id(this_client->channel_id);
     if(this_channel != NULL){
         leave_channel(connfd, this_channel->channel_name);
-        char buf[SHORT_MESSAGE_LEN];
         //send message to all other users in the channel
         int i;
         for(i=0; i<FD_SETSIZE; i++){
@@ -620,6 +631,8 @@ int handle_quit(int connfd, char* msg, pool* p){
             }
         }
     }
+    sprintf(buf,"REMOVEUSER %s\n",this_client->nickname);
+    Rio_writen(sockfd_daemon,buf, strlen(buf));
     FD_CLR(connfd, &p->read_set);
     p->clientfd[connfd] = EMPTY_FD;
     global_client_queue[connfd] = NULL;
@@ -727,6 +740,8 @@ int handle_join(int connfd, char* channel_name){
             Rio_writen(this_channel->clients_list[j], buf, strlen(buf));
         }
     }
+    sprintf(buf,"ADDCHAN #%s\n",channel_name);
+    Rio_writen(sockfd_daemon,buf, strlen(buf));
 
     return 1;
 }
